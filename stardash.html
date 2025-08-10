@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Star Dash</title>
+<style>
+  :root{--bg:#071022;--panel:#0f1724;--accent:#ffd166;--muted:#9aa4b2}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+  body{background:linear-gradient(180deg,var(--bg) 0%, #06101a 100%);color:#eef9ff;display:flex;align-items:center;justify-content:center;touch-action:none}
+  .container{width:960px;max-width:96vw;background:rgba(255,255,255,0.03);border-radius:14px;box-shadow:0 8px 30px rgba(2,6,23,0.6);overflow:hidden;position:relative}
+  header{display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent)}
+  header h1{font-size:18px;margin:0;letter-spacing:0.6px}
+  header .meta{margin-left:auto;color:var(--muted);font-size:13px}
+  .board{display:flex;gap:12px;padding:18px}
+  canvas{background:transparent;border-radius:10px;display:block;touch-action:none}
+  .sidebar{width:260px;min-width:220px;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px}
+  .panel{background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;margin-bottom:12px}
+  .big{font-size:22px;font-weight:700;color:var(--accent);text-align:center}
+  .muted{color:var(--muted);font-size:13px}
+  button{appearance:none;border:0;padding:8px 12px;border-radius:8px;background:linear-gradient(180deg,#18314a,#0f2b3f);color:#eaf6ff;cursor:pointer}
+  .row{display:flex;gap:8px;align-items:center}
+  .controls{display:flex;flex-wrap:wrap;gap:6px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  footer{font-size:12px;color:var(--muted);padding:10px 18px;text-align:center}
+  /* touch controls (mobile) */
+  .touch-controls{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;display:flex;gap:12px;z-index:30;pointer-events:auto}
+  .tc-btn{width:70px;height:70px;border-radius:12px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;user-select:none;touch-action:none;border:1px solid rgba(255,255,255,0.03)}
+  .tc-btn.active{background:rgba(255,255,255,0.12);transform:scale(0.98)}
+  /* hide on wide screens (desktop) */
+  @media(min-width:821px){ .touch-controls{display:none} }
+  @media(max-width:820px){ .container{max-width:98vw} .sidebar{display:none} }
+</style>
+</head>
+<body>
+<div class="container" role="application">
+  <header>
+    <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36'><rect rx='6' width='36' height='36' fill='%23ffd166'/><path d='M10 22 L18 10 L26 22 Z' fill='%23071a2b'/></svg>" alt="logo" style="width:36px;height:36px;border-radius:6px;">
+    <h1>Star Dash</h1>
+    <div class="meta">Collect stars • avoid comets</div>
+  </header>
+
+  <div class="board">
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;position:relative">
+      <canvas id="game" width="720" height="480" style="width:100%;height:auto"></canvas>
+
+      <!-- Mobile touch controls (left, right, dash) -->
+      <div class="touch-controls" id="touchControls" aria-hidden="false">
+        <div class="tc-btn" id="leftBtn" title="Left">◀</div>
+        <div class="tc-btn" id="dashBtn" title="Dash">⚡</div>
+        <div class="tc-btn" id="rightBtn" title="Right">▶</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:0 6px 6px">
+        <div class="row">
+          <div class="panel" style="padding:8px 12px;border-radius:8px">Score<br><div id="score" class="big">0</div></div>
+          <div class="panel" style="padding:8px 12px;border-radius:8px">Best<br><div id="best" class="big">0</div></div>
+        </div>
+        <div class="row">
+          <button id="startBtn">Start</button>
+          <button id="muteBtn">Mute</button>
+          <button id="shareBtn">Share</button>
+        </div>
+      </div>
+    </div>
+
+    <aside class="sidebar" aria-hidden="true">
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong>How to play</strong><span class="muted">(mobile supported)</span></div>
+        <div class="hint">Move left/right with ← → or A / D. Tap/click or use ⚡ to dash. Avoid comets, collect stars for points. Survive as long as you can!</div>
+      </div>
+
+      <div class="panel">
+        <strong>Controls</strong>
+        <div class="controls hint">←/→ or A/D — move | Space — dash/pause | Tap — dash</div>
+      </div>
+
+      <div class="panel">
+        <strong>Powerups</strong>
+        <div class="hint">Magnet: pulls stars to you. Shield: protect from one hit.</div>
+      </div>
+
+      <div class="panel">
+        <strong>Tips</strong>
+        <ul class="hint" style="padding-left:16px;margin:6px 0 0">
+          <li>Keep moving — hazards cluster.</li>
+          <li>Use dash to quickly grab stars.</li>
+          <li>High score is saved locally.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+
+  <footer><code>Guahh 2025</code></footer>
+</div>
+
+<script>
+/* Star Dash — same gameplay, plus on-screen mobile controls
+   - Buttons: left, dash, right (pointer-friendly)
+   - Keeps original keyboard & canvas-tap dash behavior
+   - Improved canvas DPI handling for mobile
+*/
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = 720, H = 480; // logical resolution used by game logic
+// initial canvas logical resolution already set to 720x480 in markup
+function resizeCanvas(){
+  // keep logical resolution W x H, but set physical pixels for crispness
+  const rect = canvas.getBoundingClientRect();
+  // if rect.width is 0 (hidden sidebar on small screens initially), use container width fallback
+  let displayWidth = rect.width || (document.querySelector('.container').clientWidth - 36);
+  canvas.style.width = displayWidth + 'px';
+  canvas.style.height = (displayWidth * H / W) + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(W * dpr);
+  canvas.height = Math.floor(H * dpr);
+  // scale so drawing uses logical coordinates (W x H)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+let running = false;
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+let score = 0; let best = parseInt(localStorage.getItem('sd_best')) || 0;
+bestEl.textContent = best;
+
+// player & entities (same as before)
+const player = {x: W/2, y: H - 70, r: 16, vx:0, speed:4, dashCooldown:0, shield:0, magnet:0};
+let keys = {};
+let stars = []; let comets = []; let particles = []; let powerups = [];
+let tick = 0;
+
+// audio
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let muted = false;
+function beep(freq=440, time=0.08, vol=0.12){
+  if(muted) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  g.gain.value = vol;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + time);
+}
+
+// helpers & spawners
+function rand(min,max){return Math.random()*(max-min)+min}
+function spawnStar(){ stars.push({x:rand(20,W-20),y:-20,r:8,vy:rand(1.4,2.6)}) }
+function spawnComet(){ comets.push({x:rand(20,W-20),y:-30,r:14,vy:rand(2.4,4.2),vx:rand(-0.8,0.8)}) }
+function spawnPower(){ const types=['shield','magnet']; powerups.push({x:rand(30,W-30),y:-20,r:10,vy:1.6,type:types[Math.floor(Math.random()*types.length)]}) }
+function addParticle(x,y,dx,dy,color){ for(let i=0;i<8;i++){ particles.push({x,y,dx:(dx||rand(-1.5,1.5))*rand(0.4,1.6),dy:(dy||rand(-2.5,-0.5))*rand(0.4,1.6),life:rand(30,80),c:color||'#fff'}) } }
+
+// input (keyboard)
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.code==='Space'){ e.preventDefault(); toggleDash(); } });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// quick resume audio for mobile when user interacts
+function resumeAudioIfNeeded(){ if(audioCtx && audioCtx.state !== 'running'){ audioCtx.resume().catch(()=>{}); } }
+
+// canvas pointerdown = dash (existing behavior)
+canvas.addEventListener('pointerdown', e => {
+  // if touch came from control buttons (they stop propagation) this won't run
+  resumeAudioIfNeeded();
+  toggleDash();
+});
+
+// toggle/dash/start/end helpers
+function toggleDash(){ if(!running) startGame(); else dash(); }
+function dash(){ if(player.dashCooldown>0) return; player.dashCooldown = 30; player.vx *= 2; addParticle(player.x,player.y,-1,-1,'#ffd166'); beep(880,0.05); }
+
+document.getElementById('startBtn').onclick = ()=>{ if(!running) startGame(); else endGame(); };
+document.getElementById('muteBtn').onclick = ()=>{ muted = !muted; document.getElementById('muteBtn').textContent = muted ? 'Unmute' : 'Mute'; }
+document.getElementById('shareBtn').onclick = async ()=>{ try{ if(navigator.share) await navigator.share({title:'Star Dash',text:'My score: '+score}); else await navigator.clipboard.writeText('I scored '+score+' in Star Dash! Save the HTML and play.'); alert('Shared!'); }catch(e){ alert('Share failed'); } }
+
+function startGame(){ running = true; score = 0; stars=[]; comets=[]; powerups=[]; particles=[]; tick=0; player.x=W/2; player.shield=0; player.magnet=0; player.dashCooldown=0; document.getElementById('startBtn').textContent='End'; resumeAudioIfNeeded(); beep(660,0.08); }
+function endGame(){ running=false; document.getElementById('startBtn').textContent='Start'; addParticle(player.x,player.y,0,0,'#ff6b6b'); beep(220,0.18); if(score>best){ best=score; localStorage.setItem('sd_best',best); bestEl.textContent=best; } }
+
+// mobile on-screen controls state
+const mobile = { left:false, right:false, dash:false };
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const dashBtn = document.getElementById('dashBtn');
+
+// pointer helpers to set mobile flags and update button visuals
+function makeButtonHandlers(btn, flagName, onActivate){
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault(); resumeAudioIfNeeded();
+    mobile[flagName] = true; btn.classList.add('active');
+    // for dash button: trigger once immediately
+    if(onActivate) onActivate();
+  });
+  const release = e => { mobile[flagName] = false; btn.classList.remove('active'); };
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointercancel', release);
+  btn.addEventListener('pointerleave', release);
+}
+// left/right hold behavior
+makeButtonHandlers(leftBtn, 'left', null);
+makeButtonHandlers(rightBtn, 'right', null);
+// dash button: single-use (dash or start)
+makeButtonHandlers(dashBtn, 'dash', () => { if(!running) startGame(); else dash(); });
+
+// safety: if pointerup happens anywhere, clear mobile flags (prevents stuck)
+document.addEventListener('pointerup', () => { mobile.left=false; mobile.right=false; mobile.dash=false; leftBtn.classList.remove('active'); rightBtn.classList.remove('active'); dashBtn.classList.remove('active'); });
+
+// main game update/draw loop (same logic as before, only input combine includes mobile flags)
+function update(){
+  tick++;
+  if(running && tick%45===0) spawnStar();
+  if(running && tick%160===0) spawnComet();
+  if(running && tick%800===0) spawnPower();
+
+  const moveLeft = keys['arrowleft'] || keys['a'] || mobile.left;
+  const moveRight = keys['arrowright'] || keys['d'] || mobile.right;
+
+  if(moveLeft && !moveRight) player.vx = -player.speed;
+  else if(moveRight && !moveLeft) player.vx = player.speed;
+  else player.vx = 0;
+
+  player.x += player.vx + (player.dashCooldown?player.vx*0.6:0);
+  player.x = Math.max(16, Math.min(W-16, player.x));
+  if(player.dashCooldown>0) player.dashCooldown--;
+  if(player.magnet>0) player.magnet--;
+  if(player.shield>0) player.shield--;
+
+  for(let i=stars.length-1;i>=0;i--){ let s=stars[i]; s.y += s.vy;
+    if(player.magnet>0 && Math.hypot(s.x-player.x,s.y-player.y)<140){ s.x += (player.x-s.x)*0.08; s.y += (player.y-s.y)*0.08; }
+    if(Math.hypot(s.x-player.x,s.y-player.y) < s.r+player.r){ score+=10; addParticle(s.x,s.y,0,-1,'#ffd166'); stars.splice(i,1); beep(1100,0.03); }
+    else if(s.y>H+20) stars.splice(i,1);
+  }
+
+  for(let i=comets.length-1;i>=0;i--){ let c=comets[i]; c.y+=c.vy; c.x+=c.vx; c.vy+=0.01;
+    if(Math.hypot(c.x-player.x,c.y-player.y) < c.r+player.r){
+      if(player.shield>0){ player.shield=0; addParticle(c.x,c.y,0,0,'#9ee493'); comets.splice(i,1); beep(300,0.06); }
+      else { endGame(); }
+    } else if(c.y>H+30 || c.x<-40 || c.x>W+40) comets.splice(i,1);
+  }
+
+  for(let i=powerups.length-1;i>=0;i--){ let p=powerups[i]; p.y+=p.vy;
+    if(Math.hypot(p.x-player.x,p.y-player.y) < p.r+player.r){
+      if(p.type==='shield') player.shield = 600;
+      if(p.type==='magnet') player.magnet = 600;
+      powerups.splice(i,1); addParticle(p.x,p.y,0,-1,'#9be7ff'); beep(1400,0.05);
+    } else if(p.y>H+20) powerups.splice(i,1);
+  }
+
+  for(let i=particles.length-1;i>=0;i--){ let p=particles[i]; p.x+=p.dx; p.y+=p.dy; p.dy+=0.04; p.life--; if(p.life<=0) particles.splice(i,1); }
+
+  if(running && tick%20===0) score+=1;
+  scoreEl.textContent = score;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<60;i++){ ctx.fillStyle = 'rgba(255,255,255,'+(i%7===0?0.08:0.02)+')'; ctx.fillRect((i*37)%W, (i*47)%H, 2,2); }
+  for(let s of stars){ ctx.beginPath(); ctx.fillStyle = '#ffd166'; ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill(); }
+  for(let p of powerups){ ctx.beginPath(); ctx.fillStyle = p.type==='shield'?'#9ee493':'#9be7ff'; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.fillStyle='rgba(0,0,0,0.08)'; ctx.fillText(p.type[0].toUpperCase(), p.x-3, p.y+4); }
+  for(let c of comets){ ctx.beginPath(); var g = ctx.createLinearGradient(c.x-10,c.y-10,c.x+30,c.y+30); g.addColorStop(0,'#ff9b71'); g.addColorStop(1,'#ff3b3b'); ctx.fillStyle = g; ctx.arc(c.x,c.y,c.r,0,Math.PI*2); ctx.fill(); ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(c.x+10,c.y-3,10,3); }
+  ctx.save(); ctx.translate(player.x,player.y);
+  ctx.beginPath(); ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.ellipse(0,20,22,6,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.fillStyle = '#a2d2ff'; ctx.arc(0,0,player.r,0,Math.PI*2); ctx.fill();
+  if(player.shield>0){ ctx.beginPath(); ctx.strokeStyle = 'rgba(158,228,147,'+ (0.6 + 0.4*Math.sin(tick/6)) +')'; ctx.lineWidth=4; ctx.arc(0,0,player.r+8,0,Math.PI*2); ctx.stroke(); }
+  ctx.restore();
+  for(let p of particles){ ctx.beginPath(); ctx.globalAlpha = Math.max(0, p.life/80); ctx.fillStyle = p.c; ctx.fillRect(p.x,p.y,2,2); ctx.globalAlpha =1; }
+  ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(6,6,120,34);
+  ctx.fillStyle='#fff'; ctx.font='14px system-ui'; ctx.fillText('Stars: '+stars.length, 12, 28);
+}
+
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+loop();
+
+// resume audio on any first user gesture
+canvas.addEventListener('touchstart', ()=>{ resumeAudioIfNeeded(); }, {once:true});
+document.addEventListener('pointerdown', ()=>{ resumeAudioIfNeeded(); }, {once:true});
+</script>
+</body>
+</html>
